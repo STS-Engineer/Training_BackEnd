@@ -8,6 +8,11 @@ const {
 } = require('../emailService/approvalEmailService');
 const { sendTrainingResultEmail }  = require('../emailService/resultEmailService');
 const { sendUpdateRequestEmail }   = require('../emailService/updateRequestEmailService');
+const { sendTrainingAssignedEmail, sendTrainerDoneEmail } = require('../emailService/trainerEmailService');
+const { sendOwnerValidationEmail, sendTrainerRevisionEmail } = require('../emailService/ownerValidationEmailService');
+const { notify, notifyMany } = require('./notificationService');
+
+
 
 const PHOTO_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 
@@ -151,9 +156,10 @@ async function approveTraining(trainingId, managerId, comment) {
   }
 
   await training.update({
-    first_validation: 'accepted',
-    first_approved_at: new Date(),
-    manager_comment: comment || null,
+    first_validation:      'accepted',
+    first_approved_at:     new Date(),
+    manager_comment:       comment || null,
+    last_reminder_sent_at: null, 
   });
 
   const requesters = await training.getRequesters();
@@ -172,6 +178,9 @@ async function approveTraining(trainingId, managerId, comment) {
       validationStep: '1st',
     }).catch(e => console.error(`❌ 1st validation result email not sent to ${owner.email}:`, e.message));
   }
+
+  notifyMany(requesters.map(r => r.id), training.id, 'first_validation_approved',
+    `Votre demande de formation "${training.name}" a été approuvée (1ère validation) et transmise au validateur final.`);
 
   return training;
 }
@@ -222,6 +231,8 @@ async function rejectTraining(trainingId, managerId, comment) {
     sendTrainingResultEmail({ owner, training, manager: managers[0], decision: 'rejected', comment, validationStep: '1st' }).catch(e =>
       console.error(`❌ Result email not sent to ${owner.email}:`, e.message)
     );
+    notify(owner.id, training.id, 'first_validation_rejected',
+      `Votre demande de formation "${training.name}" a été rejetée par le 1er validateur.`);
   }
 
   return training;
@@ -330,21 +341,18 @@ async function updateTraining(id, body, mediaFiles = [], quizFiles = [], removeM
     'publication_date', 'information', 'status', 'manager_comment',
   ];
 
-  const previousStatus = training.status; // capture before update
+  const previousStatus = training.status; 
 
   const updates = {};
   for (const field of allowedFields) {
     if (body[field] !== undefined) updates[field] = body[field];
   }
 
-  // Auto-reset to pending when creator re-submits after an update request
   if (previousStatus === 'updated' && !updates.status) {
     updates.status = 'pending';
     if (training.first_validation === 'accepted') {
-      // Second validator had requested the update — reset second_validation only
       updates.second_validation = null;
     } else {
-      // First manager had requested the update — reset first_validation
       updates.first_validation = null;
     }
   }
@@ -367,17 +375,14 @@ async function updateTraining(id, body, mediaFiles = [], quizFiles = [], removeM
   if (rsIds !== null) await training.setRequesterSupervisors(rsIds);
   if (mIds  !== null) await training.setApprovalManagers(mIds);
 
-  /* ── Remove existing media files ── */
   if (removeMediaPaths.length > 0) {
     await TrainingMedia.destroy({ where: { training_id: id, file_path: removeMediaPaths } });
   }
 
-  /* ── Remove existing quiz files ── */
   if (removeQuizPaths.length > 0) {
     await Quiz.destroy({ where: { training_id: id, file_path: removeQuizPaths } });
   }
 
-  /* ── Add new media files ── */
   for (const file of mediaFiles) {
     const media_type = PHOTO_MIME.includes(file.mimetype) ? 'photo' : 'video';
     await TrainingMedia.create({
@@ -390,7 +395,6 @@ async function updateTraining(id, body, mediaFiles = [], quizFiles = [], removeM
     });
   }
 
-  /* ── Add new quiz files ── */
   for (const file of quizFiles) {
     await Quiz.create({
       training_id: id,
@@ -401,18 +405,15 @@ async function updateTraining(id, body, mediaFiles = [], quizFiles = [], removeM
     });
   }
 
-  // If the creator is re-submitting after an update request, notify the right party.
   if (previousStatus === 'updated') {
     const fresh      = await getTrainingById(id);
     const requesters = await training.getRequesters();
 
     if (training.first_validation === 'accepted') {
-      // Second validator had requested the update — notify them for re-review
       sendSecondValidatorUpdatedEmail({ training: fresh, requesters }).catch(e =>
         console.error('❌ Second validator updated email not sent:', e.message)
       );
     } else {
-      // First manager(s) had requested the update — notify all managers
       const managers = await training.getApprovalManagers();
       for (const manager of managers) {
         sendTrainingUpdatedEmail({ manager, training: fresh, requesters }).catch(e =>
@@ -425,10 +426,6 @@ async function updateTraining(id, body, mediaFiles = [], quizFiles = [], removeM
   return getTrainingById(id);
 }
 
-/**
- * Manager requests the creator to update the training before approval.
- * Sets status to 'updated', stores the comment, emails the owner.
- */
 async function requestUpdateTraining(trainingId, managerId, comment) {
   const training = await Training.findByPk(trainingId);
   if (!training) {
@@ -464,13 +461,14 @@ async function requestUpdateTraining(trainingId, managerId, comment) {
 
   await training.update({ status: 'updated', manager_comment: comment, first_validation: 'update_requested' });
 
-  // Notify the training creator (first requester)
   const requesters = await training.getRequesters();
   const owner = requesters[0];
   if (owner) {
     sendUpdateRequestEmail({ owner, training, manager: managers[0], comment }).catch(e =>
       console.error(`❌ Update request email not sent to ${owner.email}:`, e.message)
     );
+    notify(owner.id, training.id, 'first_validation_update_requested',
+      `Des modifications sont requises pour votre demande de formation "${training.name}" (1ère validation).`);
   }
 
   return training;
@@ -478,7 +476,13 @@ async function requestUpdateTraining(trainingId, managerId, comment) {
 
 // ── Second validator actions ──────────────────────────────────────────────────
 
-async function secondApproveTraining(trainingId) {
+async function secondApproveTraining(trainingId, trainerId) {
+  if (!trainerId) {
+    const err = new Error('Un trainer_id est requis pour approuver la deuxième validation.');
+    err.status = 400;
+    throw err;
+  }
+
   const training = await Training.findByPk(trainingId);
   if (!training) {
     const err = new Error(`Training #${trainingId} introuvable.`);
@@ -498,10 +502,18 @@ async function secondApproveTraining(trainingId) {
     throw err;
   }
 
+  const trainer = await CompanyMember.findByPk(trainerId);
+  if (!trainer) {
+    const err = new Error(`Aucun membre trouvé avec l'id #${trainerId}.`);
+    err.status = 404;
+    throw err;
+  }
+
   await training.update({
     second_validation: 'accepted',
     status: 'in progress',
     second_approved_at: new Date(),
+    trainer_id: trainerId,
   });
 
   const requesters = await training.getRequesters();
@@ -511,6 +523,19 @@ async function secondApproveTraining(trainingId) {
       console.error(`❌ Result email not sent to ${owner.email}:`, e.message)
     );
   }
+
+  if (trainer.email) {
+    sendTrainingAssignedEmail({ trainer, training, requesters }).catch(e =>
+      console.error(`❌ Training assignment email not sent to trainer:`, e.message)
+    );
+  } else {
+    console.warn(`⚠️ Trainer #${trainerId} has no email address.`);
+  }
+
+  notifyMany(requesters.map(r => r.id), training.id, 'second_validation_approved',
+    `Votre demande de formation "${training.name}" a été approuvée (2ème validation). Un formateur a été désigné.`);
+  notify(trainer.id, training.id, 'trainer_assigned',
+    `Vous avez été désigné formateur pour le training "${training.name}".`);
 
   return training;
 }
@@ -554,6 +579,8 @@ async function secondRejectTraining(trainingId, comment) {
     sendTrainingResultEmail({ owner, training, manager: { display_name: process.env.SECOND_VALIDATOR_NAME || 'Second Validator', email: process.env.SECOND_VALIDATOR_EMAIL }, decision: 'rejected', comment, validationStep: '2nd' }).catch(e =>
       console.error(`❌ Result email not sent to ${owner.email}:`, e.message)
     );
+    notify(owner.id, training.id, 'second_validation_rejected',
+      `Votre demande de formation "${training.name}" a été rejetée par le 2ème validateur.`);
   }
 
   return training;
@@ -602,6 +629,138 @@ async function secondRequestUpdateTraining(trainingId, comment) {
     }).catch(e =>
       console.error(`❌ Update request email not sent to ${owner.email}:`, e.message)
     );
+    notify(owner.id, training.id, 'second_validation_update_requested',
+      `Des modifications sont requises pour votre demande de formation "${training.name}" (2ème validation).`);
+  }
+
+  return training;
+}
+
+// ── Trainer: mark training as done (awaiting owner validation) ──────────────
+
+async function markTrainingDone(trainingId, docFile) {
+  console.log("icii");
+  const training = await Training.findByPk(trainingId);
+  if (!training) {
+    const err = new Error(`Training #${trainingId} introuvable.`);
+    err.status = 404;
+    throw err;
+  }
+  console.log('markTrainingDone called with docFile:', docFile);
+  if (training.status !== 'in progress') {
+    const err = new Error(`Le training doit être "in progress" pour être marqué comme terminé (statut actuel : ${training.status}).`);
+    err.status = 400;
+    throw err;
+  }
+
+  const now = new Date();
+  await training.update({
+    status:              'awaiting_owner_validation',
+    trainer_done_at:     now,
+    last_reminder_sent_at: null,
+    documentation_path:  docFile ? `/uploads/documentation/${docFile.filename}` : training.documentation_path,
+    documentation_name:  docFile ? docFile.originalname : training.documentation_name,
+  });
+
+  const fresh      = await getTrainingById(trainingId);
+  const requesters = await training.getRequesters();
+  const owner      = requesters[0];
+  const trainer    = training.trainer_id ? await CompanyMember.findByPk(training.trainer_id) : null;
+
+  if (owner && trainer) {
+    sendOwnerValidationEmail({ owner, training: fresh, trainer, docFile }).catch(e =>
+      console.error('❌ Owner validation email not sent:', e.message)
+    );
+  }
+
+  if (owner) {
+    notify(owner.id, trainingId, 'training_awaiting_owner_validation',
+      `Le formateur a complété le training "${training.name}" et soumis la documentation. Votre validation est requise.`);
+  }
+
+  return fresh;
+}
+
+// ── Owner: accept the completed training → status = done ─────────────────────
+
+async function ownerAcceptTraining(trainingId) {
+  const training = await Training.findByPk(trainingId);
+  if (!training) {
+    const err = new Error(`Training #${trainingId} introuvable.`);
+    err.status = 404;
+    throw err;
+  }
+
+  if (training.status !== 'awaiting_owner_validation') {
+    const err = new Error(`Ce training n'est pas en attente de validation propriétaire (statut actuel : ${training.status}).`);
+    err.status = 400;
+    throw err;
+  }
+
+  await training.update({
+    status:              'done',
+    final_validation:    'accepted',
+    final_approved_at:   new Date(),
+  });
+
+  const fresh      = await getTrainingById(trainingId);
+  const requesters = await training.getRequesters();
+  const trainer    = training.trainer_id ? await CompanyMember.findByPk(training.trainer_id) : null;
+
+  if (trainer && requesters.length > 0) {
+    sendTrainerDoneEmail({ training: fresh, trainer, requesters }).catch(e =>
+      console.error('❌ Trainer-done email not sent:', e.message)
+    );
+  }
+
+  if (trainer) {
+    notify(trainer.id, trainingId, 'owner_accepted',
+      `Le propriétaire a validé votre soumission pour le training "${fresh.name}". Le training est maintenant terminé.`);
+  }
+  notifyMany(requesters.map(r => r.id), trainingId, 'training_completed',
+    `Le training "${fresh.name}" a été validé par le propriétaire et est maintenant terminé.`);
+
+  return fresh;
+}
+
+// ── Owner: request revisions from the trainer → back to in progress ──────────
+
+async function ownerRequestRevision(trainingId, comment) {
+  const training = await Training.findByPk(trainingId);
+  if (!training) {
+    const err = new Error(`Training #${trainingId} introuvable.`);
+    err.status = 404;
+    throw err;
+  }
+
+  if (training.status !== 'awaiting_owner_validation') {
+    const err = new Error(`Ce training n'est pas en attente de validation propriétaire (statut actuel : ${training.status}).`);
+    err.status = 400;
+    throw err;
+  }
+
+  if (!comment || !comment.trim()) {
+    const err = new Error('Un commentaire est requis pour demander des modifications.');
+    err.status = 400;
+    throw err;
+  }
+
+  await training.update({
+    status:           'in progress',
+    owner_comment:    comment.trim(),
+    final_validation: 'update_requested',
+  });
+
+  const trainer = training.trainer_id ? await CompanyMember.findByPk(training.trainer_id) : null;
+  if (trainer && trainer.email) {
+    sendTrainerRevisionEmail({ trainer, training, comment: comment.trim() }).catch(e =>
+      console.error('❌ Trainer revision email not sent:', e.message)
+    );
+  }
+
+  if (trainer) {
+    notify(trainer.id, trainingId, 'owner_revision_requested',
+      `Le propriétaire a demandé des révisions pour le training "${training.name}". Consultez leurs commentaires et soumettez à nouveau.`);
   }
 
   return training;
@@ -618,6 +777,9 @@ module.exports = {
   secondApproveTraining,
   secondRejectTraining,
   secondRequestUpdateTraining,
+  markTrainingDone,
+  ownerAcceptTraining,
+  ownerRequestRevision,
   getTrainingsByManager,
 };
 

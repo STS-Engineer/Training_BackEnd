@@ -6,17 +6,29 @@ const MAX_SIZE = parseInt(process.env.MAX_FILE_SIZE_MB || '50', 10) * 1024 * 102
 
 // ── MIME types autorisés par champ ────────────────────────────────────────────
 const ALLOWED_MIME = {
-  media: ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime'],
-  quiz:  [
+  media:         ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime'],
+  quiz:          [
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ],
+  documentation: [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ],
+  doc: [
+    'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ],
 };
 
-// ── Dossiers de destination par champ ────────────────────────────────────────
+// ── Dossiers de destination par champ ────────────────────────────────────────────
 const DEST_FOLDER = {
-  media: 'photo-video',
-  quiz:  'quiz',
+  media:         'photo-video',
+  quiz:          'quiz',
+  documentation: 'documentation',
+  doc:           'documentation',
 };
 
 // ── Storage : enregistrement sur disque local ─────────────────────────────────
@@ -44,6 +56,8 @@ function fileFilter(_req, file, cb) {
   if (!allowed.includes(file.mimetype)) {
     const msg = file.fieldname === 'quiz'
       ? 'Le fichier quiz doit être un document Word (.doc ou .docx).'
+      : (file.fieldname === 'documentation' || file.fieldname === 'doc')
+      ? 'La documentation doit être un fichier PDF ou Word (.pdf, .doc, .docx).'
       : `Type de fichier non autorisé : ${file.mimetype}`;
     return cb(Object.assign(new Error(msg), { status: 400 }));
   }
@@ -53,8 +67,12 @@ function fileFilter(_req, file, cb) {
 const upload = multer({ storage, fileFilter, limits: { fileSize: MAX_SIZE } });
 
 const uploadTrainingFiles = upload.fields([
-  { name: 'media', maxCount: 20 },
-  { name: 'quiz',  maxCount: 5  },
+  { name: 'media',         maxCount: 20 },
+  { name: 'quiz',          maxCount: 5  },
 ]);
 
-module.exports = { upload, uploadTrainingFiles };
+const uploadDocumentation = upload.fields([
+  { name: 'doc', maxCount: 1 },
+]);
+
+module.exports = { upload, uploadTrainingFiles, uploadDocumentation };

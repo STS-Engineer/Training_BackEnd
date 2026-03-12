@@ -6,6 +6,7 @@ const cors    = require('cors');
 const { sequelize } = require('./src/models/index');
 const routes        = require('./src/routes/index');
 const errorHandler  = require('./src/middlewares/errorHandler');
+const { startReminderJob } = require('./src/jobs/reminderJob');
 
 const app = express();
 
@@ -42,6 +43,7 @@ sequelize.authenticate()
   })
   .then(() => {
     console.log('✅ Tables synchronisées : users, trainings, quizzes, training_media.');
+    startReminderJob();
     app.listen(PORT, () => {
       console.log(`🚀 Serveur lancé sur http://localhost:${PORT}`);
       console.log(`   → API disponible sur http://localhost:${PORT}/api`);

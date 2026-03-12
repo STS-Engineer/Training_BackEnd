@@ -98,7 +98,7 @@ const Training = sequelize.define('Training', {
   },
 
   status: {
-    type: DataTypes.ENUM('pending', 'approved', 'rejected', 'in progress', 'done', 'updated', 'stuck'),
+    type: DataTypes.ENUM('pending', 'approved', 'rejected', 'in progress', 'done', 'updated', 'stuck', 'awaiting_owner_validation'),
     allowNull: false,
     defaultValue: 'pending',
   },
@@ -133,6 +133,58 @@ const Training = sequelize.define('Training', {
     type: DataTypes.ENUM('accepted', 'rejected', 'update_requested'),
     allowNull: true,
     defaultValue: null,
+  },
+
+  last_reminder_sent_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    defaultValue: null,
+  },
+
+  trainer_done_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    defaultValue: null,
+    comment: 'Timestamp when the trainer marks the training as done',
+  },
+
+  documentation_path: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: null,
+    comment: 'Path to the training documentation file (PDF/Word) uploaded by the trainer',
+  },
+
+  documentation_name: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: null,
+    comment: 'Original filename of the training documentation',
+  },
+
+  final_validation: {
+    type: DataTypes.ENUM('accepted', 'update_requested'),
+    allowNull: true,
+    defaultValue: null,
+  },
+
+  final_approved_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+
+  owner_comment: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    defaultValue: null,
+    comment: 'Comment from the training owner when requesting revisions from the trainer',
+  },
+
+  trainer_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    defaultValue: null,
+    comment: 'ID of the CompanyMember assigned as trainer by the 2nd validator',
   },
 
 }, {

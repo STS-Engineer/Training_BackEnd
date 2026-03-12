@@ -1,5 +1,19 @@
 const trainingService = require('../services/trainingService');
 
+const markTrainingDone = async (req, res, next) => {
+  try {
+    console.log('markTrainingDone endpoint hit with training ID:', req.params.id);
+    const docFile = req.files?.documentation?.[0] || req.files?.doc?.[0] || null;
+    console.log('Fichier de documentation reçu :', docFile ? docFile.originalname : 'Aucun');
+    if (!docFile) {
+      console.log('Aucun fichier de documentation fourni.');
+      return res.status(400).json({ success: false, message: 'Un fichier de documentation (PDF ou Word) est obligatoire.' });
+    }
+    const data = await trainingService.markTrainingDone(parseInt(req.params.id, 10), docFile);
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+};
+
 const createTraining = async (req, res, next) => {
   try {
     const mediaFiles = req.files?.media || [];
@@ -73,4 +87,22 @@ const updateTraining = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { createTraining, getAllTrainings, getTrainingById, updateTraining, approveTraining, rejectTraining, getTrainingsByManager };
+const ownerAcceptTraining = async (req, res, next) => {
+  try {
+    const data = await trainingService.ownerAcceptTraining(parseInt(req.params.id, 10));
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+};
+
+const ownerRequestRevision = async (req, res, next) => {
+  try {
+    const { comment } = req.body;
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({ success: false, message: 'Un commentaire est requis.' });
+    }
+    const data = await trainingService.ownerRequestRevision(parseInt(req.params.id, 10), comment.trim());
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+};
+
+module.exports = { createTraining, getAllTrainings, getTrainingById, updateTraining, approveTraining, rejectTraining, getTrainingsByManager, markTrainingDone, ownerAcceptTraining, ownerRequestRevision };

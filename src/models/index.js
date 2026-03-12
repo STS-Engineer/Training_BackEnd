@@ -1,9 +1,10 @@
 const sequelize = require('../config/database');
 
-const CompanyMember = require('./User');
-const Training      = require('./Training');
-const Quiz          = require('./Quiz');
-const TrainingMedia = require('./TrainingMedia');
+const CompanyMember  = require('./User');
+const Training       = require('./Training');
+const Quiz           = require('./Quiz');
+const TrainingMedia  = require('./TrainingMedia');
+const Notification   = require('./Notification');
 
 Training.belongsToMany(CompanyMember, {
   as: 'requesters',
@@ -64,10 +65,15 @@ TrainingMedia.belongsTo(Training, {
   foreignKey: 'training_id',
 });
 
+// Notification associations
+Notification.belongsTo(CompanyMember, { as: 'recipient', foreignKey: 'recipient_id' });
+Notification.belongsTo(Training,      { as: 'training',  foreignKey: 'training_id'  });
+
 module.exports = {
   sequelize,
   CompanyMember,
   Training,
   Quiz,
   TrainingMedia,
+  Notification,
 };
