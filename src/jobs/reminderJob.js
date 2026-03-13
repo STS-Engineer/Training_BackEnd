@@ -71,7 +71,7 @@ async function sendFirstValidationReminders() {
       try {
         await sendFirstValidationReminder({ manager, training, requesters: training.requesters });
         notify(manager.id, training.id, 'reminder_first_validation',
-          `Rappel : Le training "${training.name}" est en attente de votre 1ère validation.`);
+          `Reminder: The training "${training.name}" is awaiting your 1st validation.`);
       } catch (e) {
         console.error(`❌ 1st validation reminder failed for manager ${manager.email}:`, e.message);
       }
@@ -124,7 +124,7 @@ async function sendSecondValidationReminders() {
         const validator = await CompanyMember.findOne({ where: { email: secondValidatorEmail } });
         if (validator) {
           notify(validator.id, training.id, 'reminder_second_validation',
-            `Rappel : Le training "${training.name}" est en attente de votre 2ème validation.`);
+            `Reminder: The training "${training.name}" is awaiting your 2nd validation.`);
         }
       }
       await training.update({ last_reminder_sent_at: new Date() });
@@ -171,7 +171,7 @@ async function sendOwnerValidationReminders() {
     try {
       await sendOwnerValidationReminderEmail({ owner, training });
       notify(owner.id, training.id, 'reminder_owner_validation',
-        `Rappel : Le training "${training.name}" est en attente de votre validation depuis plusieurs jours.`);
+        `Reminder: The training "${training.name}" has been awaiting your owner validation for several days.`);
       await training.update({ last_reminder_sent_at: new Date() });
     } catch (e) {
       console.error(`❌ Owner validation reminder failed for training #${training.id}:`, e.message);

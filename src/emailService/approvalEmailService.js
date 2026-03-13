@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const jwt        = require('jsonwebtoken');
+const path       = require('path');
 
 const transporter = nodemailer.createTransport({
   host:       process.env.SMTP_HOST,
@@ -44,6 +45,20 @@ function verifySecondValidatorToken(token) {
   const payload = jwt.verify(token, process.env.JWT_SECRET);
   if (payload.role !== 'second_validator') throw new Error('Invalid token type.');
   return payload;
+}
+
+function buildTrainingAttachments(training) {
+  const files = [
+    ...(training?.media || []),
+    ...(training?.quizzes || []),
+  ];
+
+  return files
+    .filter(f => f?.file_path && f?.file_name)
+    .map(f => ({
+      filename: f.file_name,
+      path: path.join(__dirname, '..', '..', String(f.file_path).replace(/^\//, '')),
+    }));
 }
 
 async function sendTrainingApprovalEmail({ manager, training, requesters, owner }) {
@@ -197,15 +212,13 @@ async function sendTrainingApprovalEmail({ manager, training, requesters, owner 
     to:      manager.email,
     subject: `[AVOCarbon] Training Approval Required: ${training.name}`,
     html,
+    attachments: buildTrainingAttachments(training),
   });
 
   console.log(`📧 Approval email sent to ${manager.email}`);
 }
 
-/**
- * Sent to managers after the training creator re-submits following an update request.
- * Same structure as approval email but with an amber header to indicate re-review.
- */
+
 async function sendTrainingUpdatedEmail({ manager, training, requesters }) {
   const token = generateActionToken(training.id, manager.id);
   const base  = process.env.BACKEND_URL || 'http://localhost:3000';
@@ -362,10 +375,6 @@ async function sendTrainingUpdatedEmail({ manager, training, requesters }) {
 
 // ── Second validator emails ───────────────────────────────────────────────────
 
-/**
- * Sent to the predefined second validator when the first manager approves.
- * Same structure as the first approval email but using /second-* routes.
- */
 async function sendSecondValidatorApprovalEmail({ training, requesters }) {
   const token = generateSecondValidatorToken(training.id);
   const base  = process.env.BACKEND_URL || 'http://localhost:3000';
@@ -519,6 +528,7 @@ async function sendSecondValidatorApprovalEmail({ training, requesters }) {
     to:      validatorEmail,
     subject: `[AVOCarbon] Second Validation Required: ${training.name}`,
     html,
+    attachments: buildTrainingAttachments(training),
   });
 
   console.log(`📧 Second validator approval email sent to ${validatorEmail}`);

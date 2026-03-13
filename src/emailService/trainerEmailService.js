@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const path = require('path');
 
 const transporter = nodemailer.createTransport({
   host:       process.env.SMTP_HOST,
@@ -26,6 +27,20 @@ function row(label, value, shade) {
       <td style="padding:12px 16px; font-size:13px; color:#111827; font-weight:500;
                  border-bottom:1px solid #d1d5db;">${value || '—'}</td>
     </tr>`;
+}
+
+function buildTrainingAttachments(training) {
+  const files = [
+    ...(training?.media || []),
+    ...(training?.quizzes || []),
+  ];
+
+  return files
+    .filter(f => f?.file_path && f?.file_name)
+    .map(f => ({
+      filename: f.file_name,
+      path: path.join(__dirname, '..', '..', String(f.file_path).replace(/^\//, '')),
+    }));
 }
 
 
@@ -139,6 +154,7 @@ async function sendTrainingAssignedEmail({ trainer, training, requesters }) {
     to:      trainer.email,
     subject: `[AVOCarbon] Training Assignment: "${training.name}" — Deadline ${deadline}`,
     html,
+    attachments: buildTrainingAttachments(training),
   });
 
   console.log(`📧 Training assignment email sent to ${trainer.email} for training #${training.id}`);
@@ -353,6 +369,7 @@ async function sendTrainingAssignedEmail({ trainer, training, requesters }) {
     to:      trainer.email,
     subject: `[AVOCarbon] New Training Assignment: "${training.name}" — Deadline ${deadline}`,
     html,
+    attachments: buildTrainingAttachments(training),
   });
 
   console.log(`📧 Training assignment email sent to trainer ${trainer.email} for training #${training.id}`);

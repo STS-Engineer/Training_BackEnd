@@ -97,6 +97,20 @@ const Training = sequelize.define('Training', {
     validate: { len: [0, 2000] },
   },
 
+  link: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: null,
+    comment: 'Optional training link (meeting URL, LMS URL, or external resource)',
+  },
+
+  description_done: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    defaultValue: null,
+    comment: 'Trainer summary/details when training is completed',
+  },
+
   status: {
     type: DataTypes.ENUM('pending', 'approved', 'rejected', 'in progress', 'done', 'updated', 'stuck', 'awaiting_owner_validation'),
     allowNull: false,
@@ -171,6 +185,13 @@ const Training = sequelize.define('Training', {
   final_approved_at: {
     type: DataTypes.DATE,
     allowNull: true,
+  },
+
+  owner_revision_images: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    defaultValue: null,
+    comment: 'JSON array of image paths uploaded by the owner when requesting revisions',
   },
 
   owner_comment: {

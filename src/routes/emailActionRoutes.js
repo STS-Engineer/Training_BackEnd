@@ -3,6 +3,7 @@ const { verifyActionToken, verifySecondValidatorToken } = require('../emailServi
 const { verifyOwnerToken } = require('../emailService/ownerValidationEmailService');
 const trainingService = require('../services/trainingService');
 const { CompanyMember } = require('../models/index');
+const { uploadRevisionImages } = require('../middlewares/upload');
 
 // ── Approbation via email ─────────────────────────────────────────────────────
 router.get('/approve/:token', async (req, res) => {
@@ -14,21 +15,21 @@ router.get('/approve/:token', async (req, res) => {
       <html><body style="font-family:Arial;text-align:center;padding:60px;background:#f4f4f4;">
         <div style="display:inline-block;background:#fff;padding:40px 60px;border-radius:10px;
                     box-shadow:0 2px 8px rgba(0,0,0,.1);">
-          <h2 style="color:#28a745;">✅ Formation approuvée</h2>
-          <p>Votre décision a bien été enregistrée.</p>
-          <p style="color:#888;font-size:13px;">Vous pouvez fermer cette fenêtre.</p>
+          <h2 style="color:#28a745;">✅ Training Approved</h2>
+          <p>Your decision has been recorded.</p>
+          <p style="color:#888;font-size:13px;">You can close this window.</p>
         </div>
       </body></html>
     `);
   } catch (err) {
     const msg = err.status === 400 ? err.message
-              : err.name  === 'TokenExpiredError' ? 'Ce lien a expiré.'
-              : 'Lien invalide ou action déjà effectuée.';
+          : err.name  === 'TokenExpiredError' ? 'This link has expired.'
+          : 'Invalid link or action already taken.';
     return res.status(400).send(`
       <html><body style="font-family:Arial;text-align:center;padding:60px;background:#f4f4f4;">
         <div style="display:inline-block;background:#fff;padding:40px 60px;border-radius:10px;
                     box-shadow:0 2px 8px rgba(0,0,0,.1);">
-          <h2 style="color:#dc3545;">⚠️ Erreur</h2>
+          <h2 style="color:#dc3545;">⚠️ Error</h2>
           <p>${msg}</p>
         </div>
       </body></html>
@@ -39,11 +40,11 @@ router.get('/approve/:token', async (req, res) => {
 // ── Formulaire de refus (GET → affiche le form) ───────────────────────────────
 router.get('/reject/:token', async (req, res) => {
   try {
-    verifyActionToken(req.params.token); // valide le token avant d'afficher le form
+    verifyActionToken(req.params.token);
   } catch {
     return res.status(400).send(`
       <html><body style="font-family:Arial;text-align:center;padding:60px;background:#f4f4f4;">
-        <h2 style="color:#dc3545;">⚠️ Lien invalide ou expiré.</h2>
+        <h2 style="color:#dc3545;">⚠️ Invalid or expired link.</h2>
       </body></html>
     `);
   }
@@ -53,18 +54,18 @@ router.get('/reject/:token', async (req, res) => {
     <body style="font-family:Arial;background:#f4f4f4;padding:40px;">
       <div style="max-width:500px;margin:auto;background:#fff;padding:36px;
                   border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.1);">
-        <h2 style="color:#dc3545;">❌ Refuser la demande</h2>
-        <p>Veuillez indiquer la raison du refus :</p>
+        <h2 style="color:#dc3545;">❌ Reject Request</h2>
+        <p>Please provide the reason for rejection:</p>
         <form method="POST" action="/api/email-actions/reject/${req.params.token}">
           <textarea name="comment" rows="5" required
             style="width:100%;padding:10px;font-size:14px;border:1px solid #ccc;
                    border-radius:6px;box-sizing:border-box;"
-            placeholder="Expliquez la raison du refus..."></textarea>
+            placeholder="Explain the reason for rejection..."></textarea>
           <br/><br/>
           <button type="submit"
             style="padding:12px 32px;background:#dc3545;color:#fff;border:none;
                    border-radius:6px;font-size:15px;cursor:pointer;">
-            Confirmer le refus
+            Confirm Rejection
           </button>
         </form>
       </div>
@@ -82,8 +83,8 @@ router.post('/reject/:token', express_urlencoded, async (req, res) => {
     if (!comment || !comment.trim()) {
       return res.status(400).send(`
         <html><body style="font-family:Arial;text-align:center;padding:60px;background:#f4f4f4;">
-          <h2 style="color:#dc3545;">⚠️ Le commentaire est obligatoire.</h2>
-          <a href="/api/email-actions/reject/${req.params.token}">← Retour</a>
+          <h2 style="color:#dc3545;">⚠️ A comment is required.</h2>
+          <a href="/api/email-actions/reject/${req.params.token}">← Back</a>
         </body></html>
       `);
     }
@@ -94,16 +95,16 @@ router.post('/reject/:token', express_urlencoded, async (req, res) => {
       <html><body style="font-family:Arial;text-align:center;padding:60px;background:#f4f4f4;">
         <div style="display:inline-block;background:#fff;padding:40px 60px;border-radius:10px;
                     box-shadow:0 2px 8px rgba(0,0,0,.1);">
-          <h2 style="color:#dc3545;">❌ Formation refusée</h2>
-          <p>Votre décision a bien été enregistrée.</p>
-          <p style="color:#888;font-size:13px;">Vous pouvez fermer cette fenêtre.</p>
+          <h2 style="color:#dc3545;">❌ Training Rejected</h2>
+          <p>Your decision has been recorded.</p>
+          <p style="color:#888;font-size:13px;">You can close this window.</p>
         </div>
       </body></html>
     `);
   } catch (err) {
     const msg = err.status === 400 ? err.message
-              : err.name  === 'TokenExpiredError' ? 'Ce lien a expiré.'
-              : 'Lien invalide ou action déjà effectuée.';
+          : err.name  === 'TokenExpiredError' ? 'This link has expired.'
+          : 'Invalid link or action already taken.';
     return res.status(400).send(`
       <html><body style="font-family:Arial;text-align:center;padding:60px;background:#f4f4f4;">
         <h2 style="color:#dc3545;">⚠️ ${msg}</h2>
@@ -124,7 +125,7 @@ router.get('/request-update/:token', async (req, res) => {
   } catch {
     return res.status(400).send(`
       <html><body style="font-family:Arial;text-align:center;padding:60px;background:#f4f4f4;">
-        <h2 style="color:#dc3545;">⚠️ Lien invalide ou expiré.</h2>
+        <h2 style="color:#dc3545;">⚠️ Invalid or expired link.</h2>
       </body></html>
     `);
   }
@@ -172,8 +173,8 @@ router.post('/request-update/:token', express_urlencoded, async (req, res) => {
     if (!comment || !comment.trim()) {
       return res.status(400).send(`
         <html><body style="font-family:Arial;text-align:center;padding:60px;background:#f4f4f4;">
-          <h2 style="color:#dc3545;">⚠️ Le commentaire est obligatoire.</h2>
-          <a href="/api/email-actions/request-update/${req.params.token}">← Retour</a>
+          <h2 style="color:#dc3545;">⚠️ A comment is required.</h2>
+          <a href="/api/email-actions/request-update/${req.params.token}">← Back</a>
         </body></html>
       `);
     }
@@ -199,8 +200,8 @@ router.post('/request-update/:token', express_urlencoded, async (req, res) => {
     `);
   } catch (err) {
     const msg = err.status === 400 ? err.message
-              : err.name  === 'TokenExpiredError' ? 'Ce lien a expiré.'
-              : 'Lien invalide ou action déjà effectuée.';
+          : err.name  === 'TokenExpiredError' ? 'This link has expired.'
+          : 'Invalid link or action already taken.';
     return res.status(400).send(`
       <html><body style="font-family:Arial;text-align:center;padding:60px;background:#f4f4f4;">
         <h2 style="color:#dc3545;">⚠️ ${msg}</h2>
@@ -683,43 +684,153 @@ router.get('/owner-request-revision/:token', async (req, res) => {
 
   return res.send(`
     <html>
-    <head><meta charset="UTF-8"/></head>
-    <body style="font-family:'Segoe UI',Arial,sans-serif;background:#f1f5f9;padding:40px;margin:0;">
-      <div style="max-width:520px;margin:auto;background:#fff;padding:36px 40px;
-                  border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-        <p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:3px;
-                  color:#1e3a5f;text-transform:uppercase;">AVOCarbon — Administration STS</p>
-        <h2 style="margin:8px 0 6px;color:#d97706;font-size:20px;">✎ Request Modifications</h2>
-        <p style="margin:0 0 24px;font-size:14px;color:#6b7280;">
-          Please describe the changes you require before you can validate this training.
-        </p>
-        <form method="POST" action="/api/email-actions/owner-request-revision/${req.params.token}">
-          <label style="display:block;font-size:13px;font-weight:600;color:#1e3a5f;margin-bottom:6px;">
-            Your comments / required modifications
-          </label>
-          <textarea name="comment" rows="6" required
-            style="width:100%;padding:10px 12px;font-size:14px;color:#111827;
-                   border:1px solid #d1d5db;border-radius:8px;box-sizing:border-box;
-                   resize:vertical;line-height:1.6;"
-            placeholder="Describe what needs to be revised..."></textarea>
-          <br/><br/>
-          <button type="submit"
-            style="padding:10px 28px;background:#d97706;color:#fff;border:none;
-                   border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">
-            ✎ &nbsp;Send Revision Request
-          </button>
-        </form>
+    <head>
+      <meta charset="UTF-8"/>
+      <title>Request Modifications</title>
+      <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f1f5f9; margin: 0; padding: 40px 16px; }
+        .card { max-width: 560px; margin: 0 auto; background: #fff; border-radius: 16px;
+                box-shadow: 0 4px 24px rgba(0,0,0,.08); overflow: hidden; }
+        .header { background: #fff; border-bottom: 3px solid #d97706; padding: 28px 36px; text-align: center; }
+        .header p  { margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: 3px;
+                     color: #1e3a5f; text-transform: uppercase; }
+        .header h1 { margin: 0; font-size: 22px; font-weight: 700; color: #d97706; }
+        .body { padding: 30px 36px; }
+        label.field-label { display: block; font-size: 12px; font-weight: 800; letter-spacing: 1px;
+                            color: #1e3a5f; text-transform: uppercase; margin-bottom: 8px; }
+        textarea {
+          width: 100%; padding: 12px 14px; font-size: 14px; color: #111827; font-family: inherit;
+          border: 1.5px solid #d1d5db; border-radius: 10px; resize: vertical; line-height: 1.65;
+          background: #f9fafb; transition: border-color .15s, box-shadow .15s;
+        }
+        textarea:focus { outline: none; border-color: #d97706; box-shadow: 0 0 0 3px rgba(217,119,6,.15); background:#fff; }
+        .upload-zone {
+          border: 2px dashed #d1d5db; border-radius: 12px; padding: 24px 16px;
+          text-align: center; background: #f9fafb; cursor: pointer; transition: border-color .2s, background .2s;
+          position: relative;
+        }
+        .upload-zone:hover, .upload-zone.drag { border-color: #d97706; background: #fffbeb; }
+        .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+        .upload-icon { font-size: 32px; margin-bottom: 8px; }
+        .upload-zone p { margin: 0; font-size: 13px; color: #6b7280; line-height: 1.5; }
+        .upload-zone strong { color: #1e3a5f; }
+        #previews { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+        .preview-thumb { position: relative; display: inline-block; }
+        .preview-thumb img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px;
+                             border: 2px solid #e5e7eb; display: block; }
+        .preview-thumb button {
+          position: absolute; top: -6px; right: -6px; background: #ef4444; color: #fff;
+          border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px;
+          cursor: pointer; line-height: 1; padding: 0; font-weight: 700;
+        }
+        .btn {
+          display: block; width: 100%; margin-top: 24px; padding: 13px;
+          background: #d97706; color: #fff; font-size: 15px; font-weight: 700;
+          border: none; border-radius: 10px; cursor: pointer; letter-spacing: 0.3px;
+          transition: background .15s;
+        }
+        .btn:hover { background: #b45309; }
+        .footer { background: #f8fafc; border-top: 1px solid #e5e7eb; padding: 14px 36px;
+                  text-align: center; font-size: 11px; color: #9ca3af; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="header">
+          <p>AVOCarbon — Administration STS</p>
+          <h1>✎ Request Modifications</h1>
+        </div>
+        <div class="body">
+          <p style="margin:0 0 24px; font-size:14px; color:#374151; line-height:1.7;">
+            Please describe the changes required and optionally attach reference images
+            to illustrate what needs to be revised.
+          </p>
+
+          <form method="POST" action="/api/email-actions/owner-request-revision/${req.params.token}"
+                enctype="multipart/form-data" id="revForm">
+
+            <!-- Comment -->
+            <label class="field-label" for="comment">Your comments / required modifications</label>
+            <textarea name="comment" id="comment" rows="6" required
+              placeholder="Describe what needs to be revised..."></textarea>
+
+            <!-- Image upload -->
+            <label class="field-label" style="margin-top:20px;">
+              Reference Images <span style="font-weight:400;color:#9ca3af;text-transform:none;">(optional, max 10)</span>
+            </label>
+            <div class="upload-zone" id="dropZone">
+              <input type="file" name="revision_images" id="imageInput"
+                     accept="image/jpeg,image/png,image/webp,image/gif" multiple/>
+              <div class="upload-icon">🖼️</div>
+              <p><strong>Click to select</strong> or drag &amp; drop images here</p>
+              <p style="font-size:12px;margin-top:4px;">JPG · PNG · WebP · GIF — up to 10 files</p>
+            </div>
+            <div id="previews"></div>
+
+            <button type="submit" class="btn">✎ &nbsp;Send Revision Request</button>
+          </form>
+        </div>
+        <div class="footer">AVOCarbon — Administration STS &nbsp;|&nbsp; Automated notification.</div>
       </div>
+
+      <script>
+        const input    = document.getElementById('imageInput');
+        const previews = document.getElementById('previews');
+        const zone     = document.getElementById('dropZone');
+        let dataTransfer = new DataTransfer();
+
+        function renderPreviews() {
+          previews.innerHTML = '';
+          Array.from(dataTransfer.files).forEach((file, i) => {
+            const url   = URL.createObjectURL(file);
+            const wrap  = document.createElement('div');
+            wrap.className = 'preview-thumb';
+            wrap.innerHTML = '<img src="' + url + '" alt="' + file.name + '"/>'
+                           + '<button type="button" data-i="' + i + '">✕</button>';
+            previews.appendChild(wrap);
+          });
+          input.files = dataTransfer.files;
+        }
+
+        input.addEventListener('change', () => {
+          Array.from(input.files).forEach(f => {
+            if (dataTransfer.files.length < 10) dataTransfer.items.add(f);
+          });
+          renderPreviews();
+        });
+
+        previews.addEventListener('click', e => {
+          if (e.target.tagName === 'BUTTON') {
+            const idx = parseInt(e.target.dataset.i, 10);
+            const newDT = new DataTransfer();
+            Array.from(dataTransfer.files).forEach((f, i) => { if (i !== idx) newDT.items.add(f); });
+            dataTransfer = newDT;
+            renderPreviews();
+          }
+        });
+
+        zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag'); });
+        zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+        zone.addEventListener('drop', e => {
+          e.preventDefault(); zone.classList.remove('drag');
+          Array.from(e.dataTransfer.files).forEach(f => {
+            if (f.type.startsWith('image/') && dataTransfer.files.length < 10) dataTransfer.items.add(f);
+          });
+          renderPreviews();
+        });
+      </script>
     </body>
     </html>
   `);
 });
 
 // ── Owner: Request revision submit (POST) ─────────────────────────────────────
-router.post('/owner-request-revision/:token', express_urlencoded, async (req, res) => {
+router.post('/owner-request-revision/:token', uploadRevisionImages, async (req, res) => {
   try {
     const { trainingId } = verifyOwnerToken(req.params.token);
-    const { comment } = req.body;
+    const comment = req.body?.comment;
+    const imageFiles = req.files?.revision_images || [];
 
     if (!comment || !comment.trim()) {
       return res.status(400).send(`
@@ -731,7 +842,7 @@ router.post('/owner-request-revision/:token', express_urlencoded, async (req, re
       `);
     }
 
-    await trainingService.ownerRequestRevision(trainingId, comment.trim());
+    await trainingService.ownerRequestRevision(trainingId, comment.trim(), imageFiles);
 
     return res.send(`
       <html>

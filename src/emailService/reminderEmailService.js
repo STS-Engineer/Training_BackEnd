@@ -1,7 +1,3 @@
-/**
- * reminderEmailService.js
- * Sends reminder emails to validators who have not yet acted on a training request.
- */
 const nodemailer = require('nodemailer');
 const jwt        = require('jsonwebtoken');
 

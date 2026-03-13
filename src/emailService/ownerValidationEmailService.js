@@ -58,6 +58,20 @@ async function sendOwnerValidationEmail({ owner, training, trainer, docFile }) {
 
   const ownerName   = owner.display_name   || `${owner.first_name || ''} ${owner.last_name || ''}`.trim() || owner.email;
   const trainerName = trainer.display_name || trainer.first_name  || trainer.email;
+  const trainingLinkBlock = training.link
+    ? `
+      <a href="${training.link}" target="_blank" rel="noopener noreferrer"
+         style="display:inline-block; margin-top:8px; padding:8px 14px; background:#eff6ff;
+                color:#1d4ed8; text-decoration:none; border:1px solid #bfdbfe; border-radius:999px;
+                font-size:12px; font-weight:700; letter-spacing:0.2px;">
+        Open Training Link
+      </a>
+      <p style="margin:10px 0 0; font-size:12px; color:#475569; word-break:break-all;">${training.link}</p>
+    `
+    : `<p style="margin:8px 0 0; font-size:13px; color:#94a3b8; font-style:italic;">No link provided.</p>`;
+  const descriptionDoneBlock = training.description_done
+    ? `<p style="margin:8px 0 0; font-size:13px; color:#1f2937; line-height:1.75;">${String(training.description_done).replace(/\n/g, '<br/>')}</p>`
+    : `<p style="margin:8px 0 0; font-size:13px; color:#94a3b8; font-style:italic;">No completion description provided.</p>`;
 
   const docNote = docFile
     ? `<p style="margin:12px 0 0; font-size:13px; color:#1e3a5f; text-align:center;">
@@ -102,8 +116,9 @@ async function sendOwnerValidationEmail({ owner, training, trainer, docFile }) {
             </p>
             <p style="margin:0 0 28px; font-size:14px; color:#1f2937; line-height:1.7;">
               <strong>${trainerName}</strong> has completed the training
-              <strong>&ldquo;${training.name}&rdquo;</strong> and submitted the documentation
-              for your review. Please check the attached file and validate or request changes below.
+              <strong>&ldquo;${training.name}&rdquo;</strong>
+              ${docFile ? 'and submitted the documentation ' : ''}
+              for your review. Please validate or request changes below.
             </p>
 
             <!-- Training details -->
@@ -122,6 +137,29 @@ async function sendOwnerValidationEmail({ owner, training, trainer, docFile }) {
                 ${row('Requested KPIs',      training.requested_kpis,               false)}
                 ${row('Publication Date',    formatDate(training.publication_date),  true)}
                 ${training.information ? row('Additional Info', training.information, false) : ''}
+              </table>
+            </div>
+
+            <!-- Delivery details -->
+            <div style="border:1px solid #dbeafe; background:#f8fbff; border-radius:14px; margin:0 0 22px; overflow:hidden;">
+              <div style="background:linear-gradient(90deg,#e0ecff 0%, #f0f7ff 100%); padding:10px 14px; border-bottom:1px solid #dbeafe;">
+                <p style="margin:0; font-size:12px; font-weight:800; letter-spacing:1px; color:#1e3a5f; text-transform:uppercase;">
+                  Link & Completion Notes
+                </p>
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td style="padding:14px 16px; border-bottom:1px dashed #dbeafe;">
+                    <p style="margin:0; font-size:11px; font-weight:800; letter-spacing:0.8px; color:#1e40af; text-transform:uppercase;">Training Link</p>
+                    ${trainingLinkBlock}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:14px 16px;">
+                    <p style="margin:0; font-size:11px; font-weight:800; letter-spacing:0.8px; color:#0f766e; text-transform:uppercase;">Completion Description</p>
+                    ${descriptionDoneBlock}
+                  </td>
+                </tr>
               </table>
             </div>
 
@@ -199,8 +237,31 @@ async function sendOwnerValidationEmail({ owner, training, trainer, docFile }) {
 
 // ── Trainer revision email ────────────────────────────────────────────────────
 
-async function sendTrainerRevisionEmail({ trainer, training, comment }) {
+async function sendTrainerRevisionEmail({ trainer, training, comment, imageFiles = [] }) {
   const trainerName = trainer.display_name || trainer.first_name || trainer.email;
+
+  const imagesSection = imageFiles.length
+    ? `
+      <div style="border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; margin-bottom:28px;">
+        <div style="background:#1e3a5f; padding:12px 16px;">
+          <p style="margin:0; font-size:12px; font-weight:700; letter-spacing:1px;
+                    color:#93c5fd; text-transform:uppercase;">Reference Images (${imageFiles.length})</p>
+        </div>
+        <div style="padding:16px 20px; background:#f8fafc;">
+          <p style="margin:0 0 10px; font-size:13px; color:#475569;"
+            >The owner has attached the following image(s) to illustrate the required changes.
+             They are also attached to this email.</p>
+          <table cellpadding="0" cellspacing="0"><tr>
+            ${imageFiles.map(f => `
+              <td style="padding:4px;">
+                <img src="cid:revimg_${f.filename}" alt="${f.originalname}"
+                     style="max-width:160px; max-height:120px; border-radius:6px;
+                            border:1px solid #e2e8f0; display:block;"/>
+              </td>`).join('')}
+          </tr></table>
+        </div>
+      </div>`
+    : '';
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -256,6 +317,8 @@ async function sendTrainerRevisionEmail({ trainer, training, comment }) {
               </div>
             </div>
 
+            ${imagesSection}
+
             <!-- Training info -->
             <div style="border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; margin-bottom:28px;">
               <div style="background:#1e3a5f; padding:12px 16px;">
@@ -296,11 +359,18 @@ async function sendTrainerRevisionEmail({ trainer, training, comment }) {
 </body>
 </html>`;
 
+  const attachments = imageFiles.map(f => ({
+    filename: f.originalname,
+    path:     path.join(__dirname, '..', '..', 'uploads', 'revision-images', f.filename),
+    cid:      `revimg_${f.filename}`,
+  }));
+
   await transporter.sendMail({
     from:    process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
     to:      trainer.email,
     subject: `[AVOCarbon] Revision Required: "${training.name}"`,
     html,
+    attachments,
   });
 
   console.log(`📧 Trainer revision email sent to ${trainer.email} for training #${training.id}`);

@@ -4,12 +4,16 @@ const markTrainingDone = async (req, res, next) => {
   try {
     console.log('markTrainingDone endpoint hit with training ID:', req.params.id);
     const docFile = req.files?.documentation?.[0] || req.files?.doc?.[0] || null;
-    console.log('Fichier de documentation reçu :', docFile ? docFile.originalname : 'Aucun');
-    if (!docFile) {
-      console.log('Aucun fichier de documentation fourni.');
-      return res.status(400).json({ success: false, message: 'Un fichier de documentation (PDF ou Word) est obligatoire.' });
-    }
-    const data = await trainingService.markTrainingDone(parseInt(req.params.id, 10), docFile);
+    const link = req.body?.link && String(req.body.link).trim() ? String(req.body.link).trim() : null;
+    const description_done = req.body?.description_done && String(req.body.description_done).trim()
+      ? String(req.body.description_done).trim()
+      : null;
+
+    console.log('Documentation file received:', docFile ? docFile.originalname : 'None');
+    const data = await trainingService.markTrainingDone(parseInt(req.params.id, 10), docFile, {
+      link,
+      description_done,
+    });
     res.json({ success: true, data });
   } catch (err) { next(err); }
 };

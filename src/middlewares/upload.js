@@ -6,29 +6,31 @@ const MAX_SIZE = parseInt(process.env.MAX_FILE_SIZE_MB || '50', 10) * 1024 * 102
 
 // ── MIME types autorisés par champ ────────────────────────────────────────────
 const ALLOWED_MIME = {
-  media:         ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime'],
-  quiz:          [
+  media:            ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime'],
+  quiz:             [
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ],
-  documentation: [
+  documentation:    [
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ],
-  doc: [
+  doc:              [
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ],
+  revision_images:  ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
 };
 
 // ── Dossiers de destination par champ ────────────────────────────────────────────
 const DEST_FOLDER = {
-  media:         'photo-video',
-  quiz:          'quiz',
-  documentation: 'documentation',
-  doc:           'documentation',
+  media:           'photo-video',
+  quiz:            'quiz',
+  documentation:   'documentation',
+  doc:             'documentation',
+  revision_images: 'revision-images',
 };
 
 // ── Storage : enregistrement sur disque local ─────────────────────────────────
@@ -75,4 +77,8 @@ const uploadDocumentation = upload.fields([
   { name: 'doc', maxCount: 1 },
 ]);
 
-module.exports = { upload, uploadTrainingFiles, uploadDocumentation };
+const uploadRevisionImages = upload.fields([
+  { name: 'revision_images', maxCount: 10 },
+]);
+
+module.exports = { upload, uploadTrainingFiles, uploadDocumentation, uploadRevisionImages };
