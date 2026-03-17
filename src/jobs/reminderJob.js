@@ -1,14 +1,3 @@
-/**
- * reminderJob.js
- * Cron job: every day at 08:00, sends reminder emails to validators
- * who have not yet acted on a pending training request for 3+ days.
- *
- * 1st validation: status='pending', first_validation IS NULL
- *   → reference date: last_reminder_sent_at (or created_at if never reminded)
- *
- * 2nd validation: status='pending', first_validation='accepted', second_validation IS NULL
- *   → reference date: last_reminder_sent_at (or first_approved_at if never reminded for phase 2)
- */
 
 const cron = require('node-cron');
 const { Op } = require('sequelize');
@@ -18,9 +7,10 @@ const {
   sendSecondValidationReminder,
 } = require('../emailService/reminderEmailService');
 const { sendOwnerValidationReminderEmail } = require('../emailService/ownerValidationEmailService');
-const { notify, notifyMany } = require('../services/notificationService');
+const { notify } = require('../services/notificationService');
 
 const REMINDER_INTERVAL_DAYS = 3;
+const REMINDER_CRON = process.env.REMINDER_CRON || '0 8 */3 * *';
 
 function daysAgo(n) {
   const d = new Date();
@@ -31,9 +21,6 @@ function daysAgo(n) {
 async function sendFirstValidationReminders() {
   const cutoff = daysAgo(REMINDER_INTERVAL_DAYS);
 
-  // Trainings awaiting 1st validation, where either:
-  // - Never reminded AND created 3+ days ago, OR
-  // - Last reminded 3+ days ago
   const trainings = await Training.findAll({
     where: {
       status:           'pending',
@@ -70,14 +57,18 @@ async function sendFirstValidationReminders() {
     for (const manager of training.approvalManagers) {
       try {
         await sendFirstValidationReminder({ manager, training, requesters: training.requesters });
-        notify(manager.id, training.id, 'reminder_first_validation',
+      } catch (e) {
+        console.error(`❌ 1st validation reminder email failed for manager ${manager.email}:`, e.message);
+      }
+
+      try {
+        await notify(manager.id, training.id, 'reminder_first_validation',
           `Reminder: The training "${training.name}" is awaiting your 1st validation.`);
       } catch (e) {
-        console.error(`❌ 1st validation reminder failed for manager ${manager.email}:`, e.message);
+        console.error(`❌ 1st validation reminder notification failed for manager ${manager.email}:`, e.message);
       }
     }
 
-    // Update timestamp after sending to all managers
     await training.update({ last_reminder_sent_at: now });
   }
 
@@ -87,9 +78,6 @@ async function sendFirstValidationReminders() {
 async function sendSecondValidationReminders() {
   const cutoff = daysAgo(REMINDER_INTERVAL_DAYS);
 
-  // Trainings awaiting 2nd validation, where either:
-  // - last_reminder_sent_at is null AND first_approved_at is 3+ days ago (newly entered 2nd validation phase and never reminded)
-  // - OR last_reminder_sent_at is 3+ days ago
   const trainings = await Training.findAll({
     where: {
       status:            'pending',
@@ -116,21 +104,27 @@ async function sendSecondValidationReminders() {
   }
 
   for (const training of trainings) {
+    const secondValidatorEmail = process.env.SECOND_VALIDATOR_EMAIL;
+
     try {
       await sendSecondValidationReminder({ training, requesters: training.requesters });
-      // Notify 2nd validator if they exist as a CompanyMember
-      const secondValidatorEmail = process.env.SECOND_VALIDATOR_EMAIL;
-      if (secondValidatorEmail) {
+    } catch (e) {
+      console.error(`❌ 2nd validation reminder email failed for training #${training.id}:`, e.message);
+    }
+
+    if (secondValidatorEmail) {
+      try {
         const validator = await CompanyMember.findOne({ where: { email: secondValidatorEmail } });
         if (validator) {
-          notify(validator.id, training.id, 'reminder_second_validation',
+          await notify(validator.id, training.id, 'reminder_second_validation',
             `Reminder: The training "${training.name}" is awaiting your 2nd validation.`);
         }
+      } catch (e) {
+        console.error(`❌ 2nd validation reminder notification failed for training #${training.id}:`, e.message);
       }
-      await training.update({ last_reminder_sent_at: new Date() });
-    } catch (e) {
-      console.error(`❌ 2nd validation reminder failed for training #${training.id}:`, e.message);
     }
+
+    await training.update({ last_reminder_sent_at: new Date() });
   }
 
   console.log(`✅ 2nd validation reminders sent for ${trainings.length} training(s).`);
@@ -139,9 +133,7 @@ async function sendSecondValidationReminders() {
 async function sendOwnerValidationReminders() {
   const cutoff = daysAgo(REMINDER_INTERVAL_DAYS);
 
-  // Trainings awaiting owner validation where:
-  // - Never reminded AND trainer_done_at is 3+ days ago, OR
-  // - Last reminded 3+ days ago
+
   const trainings = await Training.findAll({
     where: {
       status: 'awaiting_owner_validation',
@@ -168,14 +160,21 @@ async function sendOwnerValidationReminders() {
   for (const training of trainings) {
     const owner = training.requesters[0];
     if (!owner) continue;
+
     try {
       await sendOwnerValidationReminderEmail({ owner, training });
-      notify(owner.id, training.id, 'reminder_owner_validation',
-        `Reminder: The training "${training.name}" has been awaiting your owner validation for several days.`);
-      await training.update({ last_reminder_sent_at: new Date() });
     } catch (e) {
-      console.error(`❌ Owner validation reminder failed for training #${training.id}:`, e.message);
+      console.error(`❌ Owner validation reminder email failed for training #${training.id}:`, e.message);
     }
+
+    try {
+      await notify(owner.id, training.id, 'reminder_owner_validation',
+        `Reminder: The training "${training.name}" has been awaiting your owner validation for several days.`);
+    } catch (e) {
+      console.error(`❌ Owner validation reminder notification failed for training #${training.id}:`, e.message);
+    }
+
+    await training.update({ last_reminder_sent_at: new Date() });
   }
 
   console.log(`✅ Owner validation reminders sent for ${trainings.length} training(s).`);
@@ -192,14 +191,10 @@ async function runReminderJob() {
   }
 }
 
-/**
- * Schedule: every day at 08:00 server time.
- * To change interval, edit the cron expression:
- *   '0 8 * * *'  → daily at 08:00
- */
+
 function startReminderJob() {
-  cron.schedule('0 8 * * *', runReminderJob, { timezone: 'Europe/Paris' });
-  console.log('✅ Reminder job scheduled (daily at 08:00 Europe/Paris).');
+  cron.schedule(REMINDER_CRON, runReminderJob, { timezone: 'Europe/Paris' });
+  console.log(`✅ Reminder job scheduled (${REMINDER_CRON}, Europe/Paris).`);
 }
 
 module.exports = { startReminderJob, runReminderJob };
