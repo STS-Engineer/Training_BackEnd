@@ -25,4 +25,28 @@ const getUserById = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { signIn, getAllUsers, getUserById };
+const changePassword = async (req, res, next) => {
+  try {
+    const memberId = parseInt(req.params.id, 10);
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ancien et nouveau mot de passe requis.',
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Le nouveau mot de passe doit faire au moins 6 caractères.',
+      });
+    }
+
+    const data = await userService.changePassword(memberId, oldPassword, newPassword);
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+};
+
+module.exports = { signIn, getAllUsers, getUserById, changePassword };

@@ -1,5 +1,5 @@
 const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const sequelize = require('../config/sequelizeSecond');
 
 const CompanyMember = sequelize.define('CompanyMember', {
   id: {
@@ -24,10 +24,6 @@ const CompanyMember = sequelize.define('CompanyMember', {
     allowNull: false,
     unique: true,
     validate: { isEmail: true },
-  },
-  password: {
-    type: DataTypes.STRING(255),
-    allowNull: true,
   },
   job_title: {
     type: DataTypes.STRING(255),
