@@ -32,6 +32,7 @@ async function createUserAuth(member) {
       member_id: member.id,
       email:     member.email,
       password:  rawPassword,
+      role:      'user',
     });
 
     console.log('─────────────────────────────────────────────');

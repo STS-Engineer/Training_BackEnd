@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "init-db": "node scripts/initDb.js"
+    "init-db": "node scripts/initDb.js",
+    "add-userauth-role": "node scripts/addUserAuthRoleColumn.js"
   },
   "keywords": [],
   "author": "",

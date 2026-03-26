@@ -1,5 +1,5 @@
-const { Training, CompanyMember, Quiz, TrainingMedia } = require('../models/index');
-const { Op } = require('sequelize');
+const { sequelize, Training, CompanyMember, Quiz, TrainingMedia } = require('../models/index');
+const { Op, QueryTypes } = require('sequelize');
 const {
   sendTrainingApprovalEmail,
   sendTrainingUpdatedEmail,
@@ -23,6 +23,63 @@ async function getTrainingWithAttachments(trainingId) {
       { model: TrainingMedia, as: 'media' },
     ],
   });
+}
+
+async function getMembersByTrainingLink(trainingId, joinTable) {
+  const rows = await sequelize.query(
+    `SELECT member_id
+       FROM ${joinTable}
+      WHERE training_id = :trainingId
+      ORDER BY created_at ASC, member_id ASC`,
+    {
+      replacements: { trainingId },
+      type: QueryTypes.SELECT,
+    }
+  );
+
+  const memberIds = rows.map(row => Number(row.member_id)).filter(Boolean);
+  if (memberIds.length === 0) return [];
+
+  const members = await CompanyMember.findAll({
+    where: { id: memberIds },
+  });
+
+  const membersById = new Map(members.map(member => [Number(member.id), member]));
+  return memberIds.map(id => membersById.get(id)).filter(Boolean);
+}
+
+async function getRequestersForTraining(trainingId) {
+  return getMembersByTrainingLink(trainingId, 'training_requesters');
+}
+
+async function getRequesterSupervisorsForTraining(trainingId) {
+  return getMembersByTrainingLink(trainingId, 'training_requester_supervisors');
+}
+
+async function getApprovalManagersForTraining(trainingId, managerId = null) {
+  const managers = await getMembersByTrainingLink(trainingId, 'training_managers');
+  if (managerId === null || managerId === undefined) return managers;
+  return managers.filter(manager => Number(manager.id) === Number(managerId));
+}
+
+async function hydrateTrainingRelations(training) {
+  if (!training) return training;
+
+  const [requesters, requesterSupervisors, approvalManagers] = await Promise.all([
+    getRequestersForTraining(training.id),
+    getRequesterSupervisorsForTraining(training.id),
+    getApprovalManagersForTraining(training.id),
+  ]);
+
+  training.setDataValue('requesters', requesters);
+  training.setDataValue('requesterSupervisors', requesterSupervisors);
+  training.setDataValue('approvalManagers', approvalManagers);
+
+  return training;
+}
+
+async function hydrateTrainingRelationsList(trainings) {
+  return Promise.all(trainings.map(training => hydrateTrainingRelations(training)));
 }
 
 async function createTraining(body, mediaFiles = [], quizFiles = []) {
@@ -160,7 +217,7 @@ async function approveTraining(trainingId, managerId, comment) {
     throw err;
   }
 
-  const managers = await training.getApprovalManagers({ where: { id: managerId } });
+  const managers = await getApprovalManagersForTraining(training.id, managerId);
   if (managers.length === 0) {
     const err = new Error('Vous n\'êtes pas autorisé à approuver ce training.');
     err.status = 403;
@@ -174,7 +231,7 @@ async function approveTraining(trainingId, managerId, comment) {
     last_reminder_sent_at: null, 
   });
 
-  const requesters = await training.getRequesters();
+  const requesters = await getRequestersForTraining(training.id);
   const trainingWithAttachments = await getTrainingWithAttachments(training.id);
   sendSecondValidatorApprovalEmail({ training: trainingWithAttachments || training, requesters }).catch(e =>
     console.error('❌ Second validator email not sent:', e.message)
@@ -218,7 +275,7 @@ async function rejectTraining(trainingId, managerId, comment) {
     throw err;
   }
 
-  const managers = await training.getApprovalManagers({ where: { id: managerId } });
+  const managers = await getApprovalManagersForTraining(training.id, managerId);
   if (managers.length === 0) {
     const err = new Error('Vous n\'êtes pas autorisé à rejeter ce training.');
     err.status = 403;
@@ -238,7 +295,7 @@ async function rejectTraining(trainingId, managerId, comment) {
     first_validation: 'rejected',
   });
 
-  const requesters = await training.getRequesters();
+  const requesters = await getRequestersForTraining(training.id);
   const owner = requesters[0];
   if (owner) {
     sendTrainingResultEmail({ owner, training, manager: managers[0], decision: 'rejected', comment, validationStep: '1st' }).catch(e =>
@@ -259,75 +316,47 @@ async function getTrainingsByManager(managerId) {
     throw err;
   }
 
-  return Training.findAll({
-    include: [
-      {
-        model: CompanyMember,
-        as: 'approvalManagers',
-        where: { id: managerId },
-        attributes: [],
-        through: { attributes: [] },
-      },
-      {
-        model: CompanyMember,
-        as: 'requesters',
-        attributes: ['id', 'display_name', 'email', 'job_title', 'department'],
-        through: { attributes: [] },
-      },
-    ],
-    order: [['created_at', 'DESC']],
-  });
-}
+  const rows = await sequelize.query(
+    `SELECT training_id
+       FROM training_managers
+      WHERE member_id = :managerId
+      ORDER BY created_at DESC, training_id DESC`,
+    {
+      replacements: { managerId },
+      type: QueryTypes.SELECT,
+    }
+  );
 
-async function getAllTrainings() {
-  return Training.findAll({
+  const trainingIds = rows.map(row => Number(row.training_id)).filter(Boolean);
+  if (trainingIds.length === 0) return [];
+
+  const trainings = await Training.findAll({
+    where: { id: trainingIds },
     include: [
-      {
-        model: CompanyMember,
-        as: 'requesters',
-        attributes: ['id', 'display_name', 'email', 'job_title', 'department'],
-        through: { attributes: [] },
-      },
-      {
-        model: CompanyMember,
-        as: 'requesterSupervisors',
-        attributes: ['id', 'display_name', 'email', 'job_title'],
-        through: { attributes: [] },
-      },
-      {
-        model: CompanyMember,
-        as: 'approvalManagers',
-        attributes: ['id', 'display_name', 'email'],
-        through: { attributes: [] },
-      },
       { model: Quiz,          as: 'quizzes' },
       { model: TrainingMedia, as: 'media'   },
     ],
     order: [['created_at', 'DESC']],
   });
+
+  return hydrateTrainingRelationsList(trainings);
+}
+
+async function getAllTrainings() {
+  const trainings = await Training.findAll({
+    include: [
+      { model: Quiz,          as: 'quizzes' },
+      { model: TrainingMedia, as: 'media'   },
+    ],
+    order: [['created_at', 'DESC']],
+  });
+
+  return hydrateTrainingRelationsList(trainings);
 }
 
 async function getTrainingById(id) {
   const training = await Training.findByPk(id, {
     include: [
-      {
-        model: CompanyMember,
-        as: 'requesters',
-        attributes: ['id', 'display_name', 'email', 'job_title', 'department'],
-        through: { attributes: [] },
-      },
-      {
-        model: CompanyMember,
-        as: 'requesterSupervisors',
-        attributes: ['id', 'display_name', 'email', 'job_title'],
-        through: { attributes: [] },
-      },
-      {
-        model: CompanyMember,
-        as: 'approvalManagers',
-        attributes: ['id', 'display_name', 'email'],
-        through: { attributes: [] },
-      },
       { model: Quiz,          as: 'quizzes' },
       { model: TrainingMedia, as: 'media'   },
     ],
@@ -337,7 +366,7 @@ async function getTrainingById(id) {
     err.status = 404;
     throw err;
   }
-  return training;
+  return hydrateTrainingRelations(training);
 }
 
 async function updateTraining(id, body, mediaFiles = [], quizFiles = [], removeMediaPaths = [], removeQuizPaths = []) {
@@ -420,14 +449,14 @@ async function updateTraining(id, body, mediaFiles = [], quizFiles = [], removeM
 
   if (previousStatus === 'updated') {
     const fresh      = await getTrainingById(id);
-    const requesters = await training.getRequesters();
+    const requesters = await getRequestersForTraining(training.id);
 
     if (training.first_validation === 'accepted') {
       sendSecondValidatorUpdatedEmail({ training: fresh, requesters }).catch(e =>
         console.error('❌ Second validator updated email not sent:', e.message)
       );
     } else {
-      const managers = await training.getApprovalManagers();
+      const managers = await getApprovalManagersForTraining(training.id);
       for (const manager of managers) {
         sendTrainingUpdatedEmail({ manager, training: fresh, requesters }).catch(e =>
           console.error(`❌ Updated notification not sent to ${manager.email}:`, e.message)
@@ -459,7 +488,7 @@ async function requestUpdateTraining(trainingId, managerId, comment) {
     throw err;
   }
 
-  const managers = await training.getApprovalManagers({ where: { id: managerId } });
+  const managers = await getApprovalManagersForTraining(training.id, managerId);
   if (managers.length === 0) {
     const err = new Error("Vous n'êtes pas autorisé à gérer ce training.");
     err.status = 403;
@@ -474,7 +503,7 @@ async function requestUpdateTraining(trainingId, managerId, comment) {
 
   await training.update({ status: 'updated', manager_comment: comment, first_validation: 'update_requested' });
 
-  const requesters = await training.getRequesters();
+  const requesters = await getRequestersForTraining(training.id);
   const owner = requesters[0];
   if (owner) {
     sendUpdateRequestEmail({ owner, training, manager: managers[0], comment }).catch(e =>
@@ -529,7 +558,7 @@ async function secondApproveTraining(trainingId, trainerId) {
     trainer_id: trainerId,
   });
 
-  const requesters = await training.getRequesters();
+  const requesters = await getRequestersForTraining(training.id);
   const owner = requesters[0];
   if (owner) {
     sendTrainingResultEmail({ owner, training, manager: { display_name: process.env.SECOND_VALIDATOR_NAME || 'Second Validator', email: process.env.SECOND_VALIDATOR_EMAIL }, decision: 'approved', comment: null, validationStep: '2nd' }).catch(e =>
@@ -587,7 +616,7 @@ async function secondRejectTraining(trainingId, comment) {
     manager_comment: comment,
   });
 
-  const requesters = await training.getRequesters();
+  const requesters = await getRequestersForTraining(training.id);
   const owner = requesters[0];
   if (owner) {
     sendTrainingResultEmail({ owner, training, manager: { display_name: process.env.SECOND_VALIDATOR_NAME || 'Second Validator', email: process.env.SECOND_VALIDATOR_EMAIL }, decision: 'rejected', comment, validationStep: '2nd' }).catch(e =>
@@ -632,7 +661,7 @@ async function secondRequestUpdateTraining(trainingId, comment) {
     manager_comment: comment,
   });
 
-  const requesters = await training.getRequesters();
+  const requesters = await getRequestersForTraining(training.id);
   const owner = requesters[0];
   if (owner) {
     sendUpdateRequestEmail({
@@ -683,7 +712,7 @@ async function markTrainingDone(trainingId, docFile, payload = {}) {
   });
 
   const fresh      = await getTrainingById(trainingId);
-  const requesters = await training.getRequesters();
+  const requesters = await getRequestersForTraining(training.id);
   const owner      = requesters[0];
   const trainer    = training.trainer_id ? await CompanyMember.findByPk(training.trainer_id) : null;
 
@@ -726,7 +755,7 @@ async function ownerAcceptTraining(trainingId) {
   });
 
   const fresh      = await getTrainingById(trainingId);
-  const requesters = await training.getRequesters();
+  const requesters = await getRequestersForTraining(training.id);
   const trainer    = training.trainer_id ? await CompanyMember.findByPk(training.trainer_id) : null;
 
   if (trainer && requesters.length > 0) {

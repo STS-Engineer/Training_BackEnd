@@ -40,6 +40,7 @@ async function signIn(email, password) {
     {
       id:           member.id,
       email:        member.email,
+      role:         userAuth.role,
       account_type: member.account_type,
     },
     process.env.JWT_SECRET,
@@ -54,6 +55,7 @@ async function signIn(email, password) {
       first_name:   member.first_name,
       last_name:    member.last_name,
       email:        member.email,
+      role:         userAuth.role,
       job_title:    member.job_title,
       department:   member.department,
       account_type: member.account_type,

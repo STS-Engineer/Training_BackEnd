@@ -22,7 +22,7 @@ router.get('/approve/:token', async (req, res) => {
       </body></html>
     `);
   } catch (err) {
-    const msg = err.status === 400 ? err.message
+    const msg = err.status ? err.message
           : err.name  === 'TokenExpiredError' ? 'This link has expired.'
           : 'Invalid link or action already taken.';
     return res.status(400).send(`
@@ -102,7 +102,7 @@ router.post('/reject/:token', express_urlencoded, async (req, res) => {
       </body></html>
     `);
   } catch (err) {
-    const msg = err.status === 400 ? err.message
+    const msg = err.status ? err.message
           : err.name  === 'TokenExpiredError' ? 'This link has expired.'
           : 'Invalid link or action already taken.';
     return res.status(400).send(`
@@ -199,7 +199,7 @@ router.post('/request-update/:token', express_urlencoded, async (req, res) => {
       </body></html>
     `);
   } catch (err) {
-    const msg = err.status === 400 ? err.message
+    const msg = err.status ? err.message
           : err.name  === 'TokenExpiredError' ? 'This link has expired.'
           : 'Invalid link or action already taken.';
     return res.status(400).send(`
@@ -438,10 +438,9 @@ router.post('/second-approve/:token', async (req, res) => {
       </body></html>
     `);
   } catch (err) {
-    const msg = err.status === 400 ? err.message
-              : err.status === 404 ? err.message
-              : err.name  === 'TokenExpiredError' ? 'This link has expired.'
-              : 'Invalid link or action already taken.';
+    const msg = err.status ? err.message
+          : err.name  === 'TokenExpiredError' ? 'This link has expired.'
+          : 'Invalid link or action already taken.';
     return res.status(err.status || 400).send(`
       <html><head><meta charset="UTF-8"/></head>
       <body style="font-family:Arial;text-align:center;padding:60px;background:#f1f5f9;">
@@ -525,9 +524,9 @@ router.post('/second-reject/:token', express_urlencoded, async (req, res) => {
       </body></html>
     `);
   } catch (err) {
-    const msg = err.status === 400 ? err.message
-              : err.name  === 'TokenExpiredError' ? 'This link has expired.'
-              : 'Invalid link or action already taken.';
+    const msg = err.status ? err.message
+          : err.name  === 'TokenExpiredError' ? 'This link has expired.'
+          : 'Invalid link or action already taken.';
     return res.status(400).send(`
       <html><head><meta charset="UTF-8"/></head>
       <body style="font-family:Arial;text-align:center;padding:60px;background:#f1f5f9;">
@@ -620,9 +619,9 @@ router.post('/second-request-update/:token', express_urlencoded, async (req, res
       </body></html>
     `);
   } catch (err) {
-    const msg = err.status === 400 ? err.message
-              : err.name  === 'TokenExpiredError' ? 'This link has expired.'
-              : 'Invalid link or action already taken.';
+    const msg = err.status ? err.message
+          : err.name  === 'TokenExpiredError' ? 'This link has expired.'
+          : 'Invalid link or action already taken.';
     return res.status(400).send(`
       <html><head><meta charset="UTF-8"/></head>
       <body style="font-family:Arial;text-align:center;padding:60px;background:#f1f5f9;">
@@ -654,9 +653,9 @@ router.get('/owner-accept/:token', async (req, res) => {
       </body></html>
     `);
   } catch (err) {
-    const msg = err.status === 400 ? err.message
-              : err.name  === 'TokenExpiredError' ? 'This link has expired.'
-              : 'Invalid link or action already taken.';
+    const msg = err.status ? err.message
+          : err.name  === 'TokenExpiredError' ? 'This link has expired.'
+          : 'Invalid link or action already taken.';
     return res.status(400).send(`
       <html><head><meta charset="UTF-8"/></head>
       <body style="font-family:Arial;text-align:center;padding:60px;background:#f1f5f9;">
@@ -862,9 +861,9 @@ router.post('/owner-request-revision/:token', uploadRevisionImages, async (req, 
       </body></html>
     `);
   } catch (err) {
-    const msg = err.status === 400 ? err.message
-              : err.name  === 'TokenExpiredError' ? 'This link has expired.'
-              : 'Invalid link or action already taken.';
+    const msg = err.status ? err.message
+          : err.name  === 'TokenExpiredError' ? 'This link has expired.'
+          : 'Invalid link or action already taken.';
     return res.status(400).send(`
       <html><head><meta charset="UTF-8"/></head>
       <body style="font-family:Arial;text-align:center;padding:60px;background:#f1f5f9;">
