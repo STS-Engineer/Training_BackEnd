@@ -1,6 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-
+const { isAllowedQuizMime, QUIZ_FILE_DESCRIPTION } = require('../constants/quizFiles');
 
 const Quiz = sequelize.define('Quiz', {
   id: {
@@ -23,13 +23,9 @@ const Quiz = sequelize.define('Quiz', {
     type: DataTypes.STRING(100),
     allowNull: false,
     validate: {
-      isWordFile(value) {
-        const allowed = [
-          'application/msword',
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        ];
-        if (!allowed.includes(value)) {
-          throw new Error('Le fichier quiz doit être un document Word (.doc ou .docx).');
+      isAllowedQuizFile(value) {
+        if (!isAllowedQuizMime(value)) {
+          throw new Error(QUIZ_FILE_DESCRIPTION);
         }
       },
     },

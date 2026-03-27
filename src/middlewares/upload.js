@@ -1,16 +1,14 @@
 const multer = require('multer');
 const path   = require('path');
 const crypto = require('crypto');
+const { isAllowedQuizMime, QUIZ_FILE_DESCRIPTION } = require('../constants/quizFiles');
 
 const MAX_SIZE = parseInt(process.env.MAX_FILE_SIZE_MB || '50', 10) * 1024 * 1024;
 
 // ── MIME types autorisés par champ ────────────────────────────────────────────
 const ALLOWED_MIME = {
   media:            ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime'],
-  quiz:             [
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  ],
+  quiz:             null,
   documentation:    [
     'application/pdf',
     'application/msword',
@@ -49,6 +47,9 @@ const storage = multer.diskStorage({
 // ── Filtre MIME : rejet des types non autorisés ──────────────────────────────
 function fileFilter(_req, file, cb) {
   const allowed = ALLOWED_MIME[file.fieldname];
+  if (file.fieldname === 'quiz') {
+    return cb(null, true);
+  }
   if (!allowed) {
     return cb(Object.assign(
       new Error(`Champ de fichier inconnu : "${file.fieldname}"`),
@@ -57,7 +58,7 @@ function fileFilter(_req, file, cb) {
   }
   if (!allowed.includes(file.mimetype)) {
     const msg = file.fieldname === 'quiz'
-      ? 'Le fichier quiz doit être un document Word (.doc ou .docx).'
+      ? QUIZ_FILE_DESCRIPTION
       : (file.fieldname === 'documentation' || file.fieldname === 'doc')
       ? 'La documentation doit être un fichier PDF ou Word (.pdf, .doc, .docx).'
       : `Type de fichier non autorisé : ${file.mimetype}`;

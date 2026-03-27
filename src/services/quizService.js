@@ -1,11 +1,7 @@
 const path = require('path');
 const fs   = require('fs');
 const { Quiz, Training } = require('../models/index');
-
-const ALLOWED_MIME = [
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-];
+const { isAllowedQuizMime, QUIZ_FILE_DESCRIPTION } = require('../constants/quizFiles');
 
 async function getQuizzesByTraining(trainingId) {
   await _checkTrainingExists(trainingId);
@@ -36,8 +32,8 @@ async function addQuizFiles(trainingId, files) {
 
   const created = [];
   for (const file of files) {
-    if (!ALLOWED_MIME.includes(file.mimetype)) {
-      const err = new Error(`Fichier rejeté : "${file.originalname}" n'est pas un document Word.`);
+    if (!isAllowedQuizMime(file.mimetype)) {
+      const err = new Error(`Fichier rejete : "${file.originalname}". ${QUIZ_FILE_DESCRIPTION}`);
       err.status = 400;
       throw err;
     }
@@ -51,6 +47,7 @@ async function addQuizFiles(trainingId, files) {
     });
     created.push(quiz);
   }
+
   return created;
 }
 
@@ -66,7 +63,7 @@ async function deleteQuiz(id) {
   if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
 
   await quiz.destroy();
-  return { message: `Quiz #${id} supprimé.` };
+  return { message: `Quiz #${id} supprime.` };
 }
 
 async function _checkTrainingExists(trainingId) {
