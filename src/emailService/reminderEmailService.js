@@ -167,7 +167,7 @@ function wrapInLayout({ headerLabel, headerNote, recipientName, bodyHtml, accent
  * Sends a reminder to a 1st-validation manager.
  */
 async function sendFirstValidationReminder({ manager, training, requesters }) {
-  const base  = process.env.BACKEND_URL || 'http://localhost:3000';
+  const base  = process.env.BACKEND_URL;
   const token = generateActionToken(training.id, manager.id);
 
   const approveUrl       = `${base}/api/email-actions/approve/${token}`;
@@ -198,7 +198,7 @@ async function sendFirstValidationReminder({ manager, training, requesters }) {
   });
 
   await transporter.sendMail({
-    from:    process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
+    from:    process.env.SMTP_FROM,
     to:      manager.email,
     subject: `[AVOCarbon] ⏰ Reminder: 1st Validation Required — ${training.name}`,
     html,
@@ -211,7 +211,7 @@ async function sendFirstValidationReminder({ manager, training, requesters }) {
  * Sends a reminder to the predefined 2nd validator.
  */
 async function sendSecondValidationReminder({ training, requesters }) {
-  const base            = process.env.BACKEND_URL || 'http://localhost:3000';
+  const base            = process.env.BACKEND_URL;
   const token           = generateSecondValidatorToken(training.id);
   const validatorEmail  = process.env.SECOND_VALIDATOR_EMAIL;
   const validatorName   = process.env.SECOND_VALIDATOR_NAME || 'Validator';
@@ -244,7 +244,7 @@ async function sendSecondValidationReminder({ training, requesters }) {
   });
 
   await transporter.sendMail({
-    from:    process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
+    from:    process.env.SMTP_FROM,
     to:      validatorEmail,
     subject: `[AVOCarbon] ⏰ Reminder: 2nd Validation Required — ${training.name}`,
     html,
