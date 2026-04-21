@@ -138,7 +138,7 @@ async function sendUpdateRequestEmail({ owner, training, manager, comment }) {
 </html>`;
 
   await transporter.sendMail({
-    from:    process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
+    from:    process.env.SMTP_FROM,
     to:      owner.email,
     subject: `[AVOCarbon] Update Required: "${training.name}"`,
     html,
