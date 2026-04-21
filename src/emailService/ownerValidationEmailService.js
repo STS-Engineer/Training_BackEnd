@@ -52,7 +52,7 @@ function row(label, value, shade) {
 
 async function sendOwnerValidationEmail({ owner, training, trainer, docFile }) {
   const token      = generateOwnerToken(training.id);
-  const base       = process.env.BACKEND_URL || 'http://localhost:3000';
+  const base       = process.env.BACKEND_URL;
   const acceptUrl  = `${base}/api/email-actions/owner-accept/${token}`;
   const reviseUrl  = `${base}/api/email-actions/owner-request-revision/${token}`;
 
@@ -225,7 +225,7 @@ async function sendOwnerValidationEmail({ owner, training, trainer, docFile }) {
   }
 
   await transporter.sendMail({
-    from:        process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
+    from:        process.env.SMTP_FROM,
     to:          owner.email,
     subject:     `[AVOCarbon] Training Validation Required: "${training.name}"`,
     html,
@@ -366,7 +366,7 @@ async function sendTrainerRevisionEmail({ trainer, training, comment, imageFiles
   }));
 
   await transporter.sendMail({
-    from:    process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
+    from:    process.env.SMTP_FROM,
     to:      trainer.email,
     subject: `[AVOCarbon] Revision Required: "${training.name}"`,
     html,
@@ -380,7 +380,7 @@ async function sendTrainerRevisionEmail({ trainer, training, comment, imageFiles
 
 async function sendOwnerValidationReminderEmail({ owner, training }) {
   const token      = generateOwnerToken(training.id);
-  const base       = process.env.BACKEND_URL || 'http://localhost:3000';
+  const base       = process.env.BACKEND_URL;
   const acceptUrl  = `${base}/api/email-actions/owner-accept/${token}`;
   const reviseUrl  = `${base}/api/email-actions/owner-request-revision/${token}`;
 
@@ -490,7 +490,7 @@ async function sendOwnerValidationReminderEmail({ owner, training }) {
 </html>`;
 
   await transporter.sendMail({
-    from:    process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
+    from:    process.env.SMTP_FROM,
     to:      owner.email,
     subject: `[AVOCarbon] ⏰ Reminder: Training Validation Required — "${training.name}"`,
     html,
