@@ -208,7 +208,7 @@ async function sendTrainingApprovalEmail({ manager, training, requesters, owner 
 </html>`;
 
   await transporter.sendMail({
-    from:    process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
+    from:    process.env.SMTP_FROM,
     to:      manager.email,
     subject: `[AVOCarbon] Training Approval Required: ${training.name}`,
     html,
@@ -221,7 +221,7 @@ async function sendTrainingApprovalEmail({ manager, training, requesters, owner 
 
 async function sendTrainingUpdatedEmail({ manager, training, requesters }) {
   const token = generateActionToken(training.id, manager.id);
-  const base  = process.env.BACKEND_URL || 'http://localhost:3000';
+  const base  = process.env.BACKEND_URL;
 
   const approveUrl       = `${base}/api/email-actions/approve/${token}`;
   const rejectUrl        = `${base}/api/email-actions/reject/${token}`;
@@ -364,7 +364,7 @@ async function sendTrainingUpdatedEmail({ manager, training, requesters }) {
 </html>`;
 
   await transporter.sendMail({
-    from:    process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
+    from:    process.env.SMTP_FROM,
     to:      manager.email,
     subject: `[AVOCarbon] Training Updated — Re-evaluation Required: ${training.name}`,
     html,
@@ -377,7 +377,7 @@ async function sendTrainingUpdatedEmail({ manager, training, requesters }) {
 
 async function sendSecondValidatorApprovalEmail({ training, requesters }) {
   const token = generateSecondValidatorToken(training.id);
-  const base  = process.env.BACKEND_URL || 'http://localhost:3000';
+  const base  = process.env.BACKEND_URL;
 
   const approveUrl       = `${base}/api/email-actions/second-approve/${token}`;
   const rejectUrl        = `${base}/api/email-actions/second-reject/${token}`;
@@ -524,7 +524,7 @@ async function sendSecondValidatorApprovalEmail({ training, requesters }) {
 </html>`;
 
   await transporter.sendMail({
-    from:    process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
+    from:    process.env.SMTP_FROM,
     to:      validatorEmail,
     subject: `[AVOCarbon] Second Validation Required: ${training.name}`,
     html,
@@ -540,7 +540,7 @@ async function sendSecondValidatorApprovalEmail({ training, requesters }) {
  */
 async function sendSecondValidatorUpdatedEmail({ training, requesters }) {
   const token = generateSecondValidatorToken(training.id);
-  const base  = process.env.BACKEND_URL || 'http://localhost:3000';
+  const base  = process.env.BACKEND_URL;
 
   const approveUrl       = `${base}/api/email-actions/second-approve/${token}`;
   const rejectUrl        = `${base}/api/email-actions/second-reject/${token}`;
@@ -686,7 +686,7 @@ async function sendSecondValidatorUpdatedEmail({ training, requesters }) {
 </html>`;
 
   await transporter.sendMail({
-    from:    process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
+    from:    process.env.SMTP_FROM,
     to:      validatorEmail,
     subject: `[AVOCarbon] Training Updated — Second Validation Required: ${training.name}`,
     html,
