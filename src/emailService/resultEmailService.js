@@ -157,7 +157,7 @@ async function sendTrainingResultEmail({ owner, training, manager, decision, com
   const subjectDecision = isApproved && validationStep === '1st' ? 'Pre-Approved (Pending 2nd Validation)' : decision;
 
   await transporter.sendMail({
-    from:    process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
+    from:    process.env.SMTP_FROM,
     to:      owner.email,
     subject: `[AVOCarbon]${subjectStep} Your training request "${training.name}" has been ${subjectDecision}`,
     html,
