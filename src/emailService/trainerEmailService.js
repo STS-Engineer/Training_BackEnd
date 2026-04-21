@@ -150,7 +150,7 @@ async function sendTrainingAssignedEmail({ trainer, training, requesters }) {
 </html>`;
 
   await transporter.sendMail({
-    from:    process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
+    from:    process.env.SMTP_FROM,
     to:      trainer.email,
     subject: `[AVOCarbon] Training Assignment: "${training.name}" — Deadline ${deadline}`,
     html,
@@ -247,7 +247,7 @@ async function sendTrainerDoneEmail({ training, trainer, requesters }) {
   const allRecipients = requesters.map(r => r.email).filter(Boolean).join(', ');
 
   await transporter.sendMail({
-    from:    process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
+    from:    process.env.SMTP_FROM,
     to:      allRecipients,
     subject: `[AVOCarbon] Training Completed: "${training.name}"`,
     html,
@@ -365,7 +365,7 @@ async function sendTrainingAssignedEmail({ trainer, training, requesters }) {
 </html>`;
 
   await transporter.sendMail({
-    from:    process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
+    from:    process.env.SMTP_FROM,
     to:      trainer.email,
     subject: `[AVOCarbon] New Training Assignment: "${training.name}" — Deadline ${deadline}`,
     html,
@@ -465,7 +465,7 @@ async function sendTrainerDoneEmail({ training, trainer, requesters }) {
   const allRecipients = requesters.map(r => r.email).filter(Boolean).join(', ');
 
   await transporter.sendMail({
-    from:    process.env.SMTP_FROM || 'administration.STS@avocarbon.com',
+    from:    process.env.SMTP_FROM,
     to:      allRecipients,
     subject: `[AVOCarbon] ✅ Training Completed: "${training.name}"`,
     html,
